@@ -144,6 +144,5 @@ int lab2_fsync(int fd){
             cache[i].valid = 0; 
         }
     }
-    
     return fsync(fd);
 }
