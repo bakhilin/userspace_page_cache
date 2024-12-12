@@ -1,0 +1,27 @@
+name: C++ CI
+
+on: 
+  push:
+    branches: [ main ] 
+  pull_request:
+    branches: [ main ] 
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+    steps:
+    
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get install libcunit1 libcunit1-doc libcunit1-dev
+    - name: Build
+      run: |
+        mkdir build
+        gcc -o test_cache src/main.c src/cache.c -lcunit
+        
+
+    - name: Run tests
+      run: |
+        ./test_cache
