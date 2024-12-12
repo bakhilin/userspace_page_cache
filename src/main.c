@@ -12,6 +12,7 @@ void create_test_file() {
     int fd = open(FILE_NAME, O_RDWR);    
     char buffer[BLOCK_SIZE];
     
+    
     for (int i = 0; i < 20; i++) {
         snprintf(buffer, BLOCK_SIZE, "This is block %d\n", i);
         write(fd, buffer, BLOCK_SIZE);
