@@ -12,11 +12,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     
-
+    - name: Set up GCC
+      uses: egor-tensin/setup-gcc@v1
+      with:
+          version: latest
+          platform: x64
     - name: Install dependencies
       run: |
         sudo apt-get install libcunit1 libcunit1-doc libcunit1-dev
-        sudo apt -y install build-essential
     - name: Build
       run: |
         gcc -o test_cache src/main.c src/cache.c -lcunit
