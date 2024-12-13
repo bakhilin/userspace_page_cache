@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 
 #define FILE_NAME "data.txt"
 
@@ -12,8 +13,7 @@ void create_test_file() {
     int fd = open(FILE_NAME, O_RDWR);    
     char buffer[BLOCK_SIZE];
     
-    
-    for (int i = 0; i < 20; i++) {
+    for (int i = 0; i < 30; i++) {
         snprintf(buffer, BLOCK_SIZE, "This is block %d\n", i);
         write(fd, buffer, BLOCK_SIZE);
     }
@@ -23,8 +23,11 @@ void create_test_file() {
 
 void test_load_into_cache() {
     create_test_file();
-    
     int fd = lab2_open(FILE_NAME);
+    struct stat f_stat;
+    fstat(fd, &f_stat);
+    ino_t inode = f_stat.st_ino;
+
     char buffer[BLOCK_SIZE];
     
     lab2_read(fd, buffer, BLOCK_SIZE); // Block 0
@@ -33,8 +36,8 @@ void test_load_into_cache() {
     lab2_read(fd, buffer, BLOCK_SIZE); // Block 1
     CU_ASSERT_STRING_EQUAL(buffer, "This is block 1\n");
     
-    CU_ASSERT_TRUE(search_in_cache_mem(fd, 0) != NULL);
-    CU_ASSERT_TRUE(search_in_cache_mem(fd,BLOCK_SIZE) != NULL);
+    CU_ASSERT_TRUE(search_in_cache_mem(inode, 0) != NULL);
+    CU_ASSERT_TRUE(search_in_cache_mem(inode,BLOCK_SIZE) != NULL);
     
     for (int i = 2; i < CACHE_SIZE; i++) {
         lab2_read(fd, buffer, BLOCK_SIZE);
