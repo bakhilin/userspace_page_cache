@@ -5,29 +5,42 @@
 #include <string.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <stdbool.h>
 
 static cache_write_t cache[CACHE_SIZE];
 
+static void do_write_and_set_invalid(cache_write_t * cache_page){
+    if (write(cache_page->fd, cache_page->data, BLOCK_SIZE) == -1)
+    {
+        perror("write fail");
+        exit(EXIT_FAILURE);
+    } 
+    cache_page->valid = 0;
+}
+
 static void eject_page(){
     int i = 0;
-    for (;;)
+    cache_write_t * cache_page;
+    for (size_t i = 0; ; i = (i+1) % CACHE_SIZE)
     {
-        if (cache[i].valid)
+        cache_page = &cache[i];
+        if (cache_page->valid)
         {
-            if (!cache[i].referenced)
+            if (!cache_page->referenced)
             {
-                lseek(cache[i].fd, cache[i].offset, SEEK_SET);
-                write(cache[i].fd, cache[i].data, BLOCK_SIZE);
-                cache[i].valid = 0;
+                lseek(cache_page->fd, cache_page->offset, SEEK_SET);
+                do_write_and_set_invalid(cache_page);
                 return;
             } else {
-                cache[i].referenced = 0;
+                cache_page->referenced = 0;
             }
         }
         i = (i + 1) % CACHE_SIZE;
     }
     
 }
+
+
 
 cache_write_t * search_in_cache_mem(int fd, off_t offset) {
     for (size_t i = 0; i < CACHE_SIZE; i++)
@@ -51,7 +64,12 @@ static cache_write_t * load_into_cache_mem(int fd, off_t offset){
             cache[i].data = malloc(BLOCK_SIZE);
             cache[i].referenced = 1;
             lseek(fd, offset, SEEK_SET);
-            read(fd, cache[i].data, BLOCK_SIZE);
+
+            if(read(fd, cache[i].data, BLOCK_SIZE) == -1) {
+                perror("errors with read()");
+                exit(EXIT_FAILURE);
+            }
+            
             return &cache[i];
         }
     }
@@ -71,13 +89,13 @@ int lab2_open(const char * path){
 }
 
 int lab2_close(int fd){
+    cache_write_t * cache_page;
     for (size_t i = 0; i < CACHE_SIZE; i++)
     {
-        if (cache[i].valid && cache[i].fd == fd)
+        if (cache_page->valid &&cache_page->fd == fd)
         {
-            lseek(fd, cache[i].offset, SEEK_SET);
-            write(fd, cache[i].data, BLOCK_SIZE);
-            cache[i].valid = 0;
+            lseek(fd, cache_page->offset, SEEK_SET);
+            do_write_and_set_invalid(cache_page);
         }
     }
     return close(fd);
@@ -132,12 +150,12 @@ off_t lab2_lseek(int fd, off_t offset, int whence){
 }
 
 int lab2_fsync(int fd){
+    cache_write_t * cache_page;
     for (size_t i = 0; i < CACHE_SIZE; i++)
     {
-        if (cache[i].valid && cache[i].fd == fd) {
-            lseek(cache[i].fd, cache[i].offset, SEEK_SET);
-            write(cache[i].fd, cache[i].data, BLOCK_SIZE);
-            cache[i].valid = 0; 
+        if (cache_page->valid && cache_page->fd == fd) {
+            lseek(cache_page->fd, cache_page->offset, SEEK_SET);
+            do_write_and_set_invalid(cache_page);
         }
     }
     return fsync(fd);

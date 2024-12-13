@@ -4,13 +4,14 @@
 
 #include <stddef.h>
 #include <sys/types.h>
+#include <stdbool.h>
 
 #define CACHE_SIZE 10
 #define BLOCK_SIZE 4096
 
 typedef struct  cache_write{
     int  fd;
-    int  valid;
+    bool  valid;
     int  referenced; // second chance
     off_t  offset;
     void*  data;
