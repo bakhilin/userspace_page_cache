@@ -45,22 +45,27 @@ cache_write_t *search_in_cache_mem(ino_t inode, off_t offset) {
 }
 
 static cache_write_t *load_into_cache_mem(ino_t inode, int fd, off_t offset) {
+    cache_write_t * cache_page;
+    
     for (size_t i = 0; i < CACHE_SIZE; i++) {
-        if (!cache[i].valid) {
-            cache[i].valid = 1;
-            cache[i].fd = fd;
-            cache[i].inode = inode;
-            cache[i].offset = offset;
-            cache[i].data = malloc(BLOCK_SIZE);
-            cache[i].referenced = 1;
+        cache_page = &cache[i];
+        if (!cache_page->valid) {
+            cache_page->valid = 1;
+            cache_page->fd = fd;
+            cache_page->inode = inode;
+            cache_page->offset = offset;
+            cache_page->data = malloc(BLOCK_SIZE);
+            cache_page->referenced = 1;
             lseek(fd, offset, SEEK_SET);
-
-            if (read(fd, cache[i].data, BLOCK_SIZE) == -1) {
-                perror("errors with read()");
+            // I decided joined this to checkouts, I hope that's not a big problem
+            if (read(fd,cache_page->data, BLOCK_SIZE) == -1 || 
+                cache_page->data == NULL
+            ) {
+                perror("Allocate memory failed or read file");
                 exit(EXIT_FAILURE);
             }
 
-            return &cache[i];
+            return &cache_page;
         }
     }
 
