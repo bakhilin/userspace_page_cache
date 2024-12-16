@@ -20,10 +20,14 @@ static void do_write_and_set_invalid(cache_write_t * cache_page) {
     cache_page->valid = 0;
 }
 
+static bool find_not_valid_page(cache_write_t * cache_page){
+    return cache_page->valid;
+}
+
 static void eject_page() {
     for (size_t i = 0; ; i = (i + 1) % CACHE_SIZE) {
         cache_write_t *cache_page = &cache[i];
-        if (cache_page->valid) {
+        if (find_not_valid_page(cache_page)) {
             if (!cache_page->referenced) {
                 lseek(cache_page->fd, cache_page->offset, SEEK_SET);
                 do_write_and_set_invalid(cache_page);
@@ -37,7 +41,10 @@ static void eject_page() {
 
 cache_write_t *search_in_cache_mem(ino_t inode, off_t offset) {
     for (size_t i = 0; i < CACHE_SIZE; i++) {
-        if (cache[i].valid && cache[i].inode == inode && cache[i].offset == offset) {
+        if (find_not_valid_page(&cache[i]) && 
+            cache[i].inode == inode && 
+            cache[i].offset == offset) 
+        {
             return &cache[i];
         }
     }
@@ -45,11 +52,11 @@ cache_write_t *search_in_cache_mem(ino_t inode, off_t offset) {
 }
 
 static cache_write_t *load_into_cache_mem(ino_t inode, int fd, off_t offset) {
-    cache_write_t * cache_page;
+    cache_write_t  * cache_page;
     
     for (size_t i = 0; i < CACHE_SIZE; i++) {
         cache_page = &cache[i];
-        if (!cache_page->valid) {
+        if (!find_not_valid_page(cache_page)) {
             cache_page->valid = 1;
             cache_page->fd = fd;
             cache_page->inode = inode;
@@ -57,15 +64,15 @@ static cache_write_t *load_into_cache_mem(ino_t inode, int fd, off_t offset) {
             cache_page->data = malloc(BLOCK_SIZE);
             cache_page->referenced = 1;
             lseek(fd, offset, SEEK_SET);
-            // I decided joined this to checkouts, I hope that's not a big problem
+            // I decided to join this checkouts, I hope that's not a big problem
             if (read(fd,cache_page->data, BLOCK_SIZE) == -1 || 
                 cache_page->data == NULL
             ) {
-                perror("Allocate memory failed or read file");
+                perror("Allocate memory or read operation was failed!");
                 exit(EXIT_FAILURE);
             }
 
-            return &cache_page;
+            return cache_page;
         }
     }
 
@@ -76,20 +83,27 @@ static cache_write_t *load_into_cache_mem(ino_t inode, int fd, off_t offset) {
 int lab2_open(const char *path) {
     int fd = open(path, O_RDWR);
     if (fd < 0) {
-        perror("Failed to open file!");
+        char * message_from_user;
+        printf("\nOutput Yes or No:");
+        scanf("%s", message_from_user);
+        if (message_from_user == "Yes\n")
+        {
+            perror("Failed to open file!");
+            exit(EXIT_FAILURE);
+        } 
         return -1;
     }
     return fd;
 }
 
 int lab2_close(int fd) {
-    struct stat  f_stat;
+    struct stat f_stat;
     fstat(fd, &f_stat);
     ino_t inode = f_stat.st_ino;
 
 
     for (size_t i = 0; i < CACHE_SIZE; i++) {
-        if (cache[i].valid && cache[i].fd == fd) {
+        if (find_not_valid_page(&cache[i]) && cache[i].fd == fd) {
             lseek(fd, cache[i].offset, SEEK_SET);
             do_write_and_set_invalid(&cache[i]);
             free(cache[i].data);
@@ -99,6 +113,9 @@ int lab2_close(int fd) {
     return close(fd);
 }
 
+/*
+    Reading data from file. 
+*/
 ssize_t lab2_read(int fd, void *buf, size_t count) {
     struct stat f_stat;
     fstat(fd, &f_stat);
@@ -153,6 +170,7 @@ ssize_t lab2_write(int fd, void *buf, size_t count) {
         cache_write_t *entry = search_in_cache_mem(fd, block_offset);
 
         if (entry == NULL) {
+            write(fd, buf, count);
             entry = load_into_cache_mem(f_stat.st_ino,fd, block_offset);
         }
 

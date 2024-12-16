@@ -24,6 +24,8 @@ void create_test_file() {
 void test_load_into_cache() {
     create_test_file();
     int fd = lab2_open(FILE_NAME);
+
+    // Via fstat() we got inode of file. 
     struct stat f_stat;
     fstat(fd, &f_stat);
     ino_t inode = f_stat.st_ino;
@@ -38,7 +40,7 @@ void test_load_into_cache() {
     
     CU_ASSERT_TRUE(search_in_cache_mem(inode, 0) != NULL);
     CU_ASSERT_TRUE(search_in_cache_mem(inode,BLOCK_SIZE) != NULL);
-    
+
     for (int i = 2; i < CACHE_SIZE; i++) {
         lab2_read(fd, buffer, BLOCK_SIZE);
         char expected_buffer[BLOCK_SIZE];
