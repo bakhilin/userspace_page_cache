@@ -14,7 +14,7 @@ static cache_write_t cache[CACHE_SIZE];
 
 static void do_write_and_set_invalid(cache_write_t * cache_page) {
     if (write(cache_page->fd, cache_page->data, BLOCK_SIZE) == -1) {
-        perror("write fail");
+        perror("write was failed");
         exit(EXIT_FAILURE);
     }
     cache_page->valid = 0;
@@ -22,6 +22,30 @@ static void do_write_and_set_invalid(cache_write_t * cache_page) {
 
 static bool find_not_valid_page(cache_write_t * cache_page){
     return cache_page->valid;
+}
+
+static void init_cache_page(cache_write_t * cache_page, int fd, ino_t inode, off_t offset){
+    cache_page->valid = 1;
+    cache_page->fd = fd;
+    cache_page->inode = inode;
+    cache_page->offset = offset;
+    cache_page->data = malloc(BLOCK_SIZE);
+    
+    if (cache_page->data == NULL)
+    {
+        perror("Allocate memory was failed");
+        exit(EXIT_FAILURE);
+    }
+    
+    cache_page->referenced = 1;   
+}
+
+static void read_from_fd_to_buf(cache_write_t * cache_page, int fd, off_t offset) {
+    lseek(fd, offset, SEEK_SET);
+    if (read(fd,cache_page->data, BLOCK_SIZE) == -1) {
+        perror("Read operation was failed!");
+        exit(EXIT_FAILURE);
+    }
 }
 
 static void eject_page() {
@@ -57,21 +81,8 @@ static cache_write_t *load_into_cache_mem(ino_t inode, int fd, off_t offset) {
     for (size_t i = 0; i < CACHE_SIZE; i++) {
         cache_page = &cache[i];
         if (!find_not_valid_page(cache_page)) {
-            cache_page->valid = 1;
-            cache_page->fd = fd;
-            cache_page->inode = inode;
-            cache_page->offset = offset;
-            cache_page->data = malloc(BLOCK_SIZE);
-            cache_page->referenced = 1;
-            lseek(fd, offset, SEEK_SET);
-            // I decided to join this checkouts, I hope that's not a big problem
-            if (read(fd,cache_page->data, BLOCK_SIZE) == -1 || 
-                cache_page->data == NULL
-            ) {
-                perror("Allocate memory or read operation was failed!");
-                exit(EXIT_FAILURE);
-            }
-
+            init_cache_page(cache_page, fd, inode, offset);
+            read_from_fd_to_buf(cache_page, fd, offset);
             return cache_page;
         }
     }
