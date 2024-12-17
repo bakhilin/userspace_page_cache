@@ -1,0 +1,1 @@
+rm cache.o cache_test 

@@ -3,7 +3,6 @@
 */
 
 #include "../include/cache.h"
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -14,7 +13,7 @@
 
 #define BLOCK_SIZE 4096 
 
-/* cache pages array */ 
+/* Cache pages array. */ 
 static cache_write_t cache[CACHE_SIZE];
 
 /* 
@@ -22,20 +21,16 @@ static cache_write_t cache[CACHE_SIZE];
     If write operation was successfull, setting valid flag to FALSE.
  */
 static void do_write_and_set_invalid(cache_write_t * cache_page) {
-    if (write(cache_page->fd, cache_page->data, BLOCK_SIZE) == -1) {
-        perror("write was failed");
-        exit(EXIT_FAILURE);
-    }
     cache_page->valid = 0;
 }
 
-/* Checkout valid flag of cache_page */
+/* Checkout valid flag of cache_page. */
 static bool find_not_valid_page(cache_write_t * cache_page){
     return cache_page->valid;
 }
 
 /*
-    The procedure initializes cache_page fields, allocate memory for cache_page->data
+    The procedure initializes cache_page fields, allocate memory for cache_page->data.
 */
 static void init_cache_page(cache_write_t * cache_page, int fd, ino_t inode, off_t offset){
     cache_page->valid = 1;
@@ -53,9 +48,11 @@ static void init_cache_page(cache_write_t * cache_page, int fd, ino_t inode, off
     cache_page->referenced = 1;   
 }
 
-/* The procedure set offset from beginning of file */
+/* 
+    The procedure set offset from beginning of file.
+*/
 static void read_from_fd_to_buf(cache_write_t * cache_page, int fd, off_t offset) {
-    lseek(fd, offset, SEEK_SET);
+    lab2_lseek(fd, offset, SEEK_SET);
     if (read(fd,cache_page->data, BLOCK_SIZE) == -1) {
         perror("Read operation was failed!");
         exit(EXIT_FAILURE);
@@ -74,17 +71,24 @@ static void eject_page() {
         cache_write_t * cache_page = &cache[i];
         if (find_not_valid_page(cache_page)) {
             if (!cache_page->referenced) {
-                lseek(cache_page->fd, cache_page->offset, SEEK_SET);
+                lab2_lseek(cache_page->fd, cache_page->offset, SEEK_SET);
                 do_write_and_set_invalid(cache_page);
                 return;
             } else {
                 cache_page->referenced = 0;
             }
+        } else {
+            cache_page->valid=0;
         }
     }
 }
 
-cache_write_t *search_in_cache_mem(ino_t inode, off_t offset) {
+/*
+    This function get inode and offset. Searching in user cache memory 
+    if inode and offset equals and page is valid then return address where 
+    located cache page or NULL.
+*/
+cache_write_t * search_in_cache_mem(ino_t inode, off_t offset) {
     for (size_t i = 0; i < CACHE_SIZE; i++) {
         if (find_not_valid_page(&cache[i]) && 
             cache[i].inode == inode && 
@@ -96,9 +100,11 @@ cache_write_t *search_in_cache_mem(ino_t inode, off_t offset) {
     return NULL;
 }
 
-static cache_write_t *load_into_cache_mem(ino_t inode, int fd, off_t offset) {
+/*
+    This function load page to cache memory. 
+*/
+static cache_write_t * load_into_cache_mem(ino_t inode, int fd, off_t offset) {
     cache_write_t  * cache_page;
-    
     for (size_t i = 0; i < CACHE_SIZE; i++) {
         cache_page = &cache[i];
         if (!find_not_valid_page(cache_page)) {
@@ -112,8 +118,14 @@ static cache_write_t *load_into_cache_mem(ino_t inode, int fd, off_t offset) {
     return load_into_cache_mem(inode, fd, offset);
 }
 
+/*
+    Function get filename and include libc open(). 
+    File opening with READ and WRITE accesses. If function return -1
+    user have to choose print or skip logs. In other case, return file 
+    descriptor (fd).
+*/
 int lab2_open(const char *path) {
-    int fd = open(path, O_RDWR);
+    int fd = open(path, O_RDWR  );
     if (fd < 0) {
         char * message_from_user;
         printf("\nOutput Yes or No:");
@@ -128,15 +140,18 @@ int lab2_open(const char *path) {
     return fd;
 }
 
+/*
+    Function get file descriptor (fd) and in for cycle find this page
+    and free memory.  
+*/
 int lab2_close(int fd) {
     struct stat f_stat;
     fstat(fd, &f_stat);
     ino_t inode = f_stat.st_ino;
 
-
     for (size_t i = 0; i < CACHE_SIZE; i++) {
         if (find_not_valid_page(&cache[i]) && cache[i].fd == fd) {
-            lseek(fd, cache[i].offset, SEEK_SET);
+            lab2_lseek(fd, cache[i].offset, SEEK_SET);
             do_write_and_set_invalid(&cache[i]);
             free(cache[i].data);
             cache[i].valid = 0;        
@@ -151,81 +166,64 @@ int lab2_close(int fd) {
 ssize_t lab2_read(int fd, void *buf, size_t count) {
     struct stat f_stat;
     fstat(fd, &f_stat);
-    
-    off_t offset = lseek(fd, 0, SEEK_CUR);
-
-    off_t start_block = offset / BLOCK_SIZE;
-    off_t end_block = (offset + count - 1) / BLOCK_SIZE;
-
-    size_t total_bytes_read = 0;
-
-    for (off_t block = start_block; block <= end_block; block++) {
-        off_t block_offset = block * BLOCK_SIZE;
-
-        cache_write_t *entry = search_in_cache_mem(fd, block_offset);
-
-        if (entry == NULL) {
-            entry = load_into_cache_mem(f_stat.st_ino,fd, block_offset);
-        }
-
-        size_t bytes_to_copy = BLOCK_SIZE;
-
-  
-        if (block == end_block) {
-            bytes_to_copy = (offset + count) % BLOCK_SIZE;
-            if (bytes_to_copy == 0) bytes_to_copy = BLOCK_SIZE;
-        }
-
-        memcpy((char *)buf + total_bytes_read, entry->data + (offset % BLOCK_SIZE), bytes_to_copy);
-        total_bytes_read += bytes_to_copy;
-
-
-        offset += bytes_to_copy;
+    if (fstat(fd, &f_stat) == -1) {
+        return -1; 
     }
-     return total_bytes_read;
+    off_t offset = lab2_lseek(fd, 0, SEEK_CUR);
+    if (offset == -1) {
+        return -1; 
+    }
+
+    cache_write_t * entry = search_in_cache_mem(f_stat.st_ino, offset);
+    size_t remaining_bytes = f_stat.st_size - offset;
+    size_t bytes_to_read = (remaining_bytes < count) ? remaining_bytes : count;
+
+    if (!entry)
+    {   
+        entry = load_into_cache_mem(f_stat.st_ino,fd, offset);
+    } 
+    memcpy(buf, entry->data, bytes_to_read);
+    entry->referenced = 1;
+
+    return bytes_to_read;
 }
 
+/*
+    Function try to search in cache memory this page. if entry not NULL (was found)
+    we write of BUF to FD and load page into cache memory.  
+*/
 ssize_t lab2_write(int fd, void *buf, size_t count) {
     struct stat f_stat;
     fstat(fd, &f_stat);
     
-    off_t offset = lseek(fd, 0, SEEK_CUR);
+    off_t offset = lab2_lseek(fd, 0, SEEK_CUR);
 
-    off_t start_block = offset / BLOCK_SIZE;
-    off_t end_block = (offset + count - 1) / BLOCK_SIZE;
+    cache_write_t *entry = search_in_cache_mem(fd, offset);
 
-    size_t total_bytes_written = 0;
-
-    for (off_t block = start_block; block <= end_block; block++) {
-        off_t block_offset = block * BLOCK_SIZE;
-
-        cache_write_t *entry = search_in_cache_mem(fd, block_offset);
-
-        if (entry == NULL) {
-            write(fd, buf, count);
-            entry = load_into_cache_mem(f_stat.st_ino,fd, block_offset);
+    if (!entry)
+    {
+        if(write(fd, buf, count)==-1){
+            perror("write was failed");
+            exit(EXIT_FAILURE);
         }
+        entry = load_into_cache_mem(f_stat.st_ino,fd, offset);
+    } 
+    memcpy(buf, entry->data, count);
+    entry->referenced = 1; // flag of link
 
-        size_t bytes_to_copy = BLOCK_SIZE;
-        
-        if (block == end_block) {
-            bytes_to_copy = (offset + count) % BLOCK_SIZE;
-            if (bytes_to_copy == 0) bytes_to_copy = BLOCK_SIZE; 
-        }
-
-        memcpy(entry->data + (offset % BLOCK_SIZE), buf + total_bytes_written, bytes_to_copy);
-        entry->referenced = 1; 
-        total_bytes_written += bytes_to_copy;
-        offset += bytes_to_copy;
-    }
-
-    return total_bytes_written;
+    return count;
 }
 
+/*
+    Function return offset.
+*/
 off_t lab2_lseek(int fd, off_t offset, int whence) {
     return lseek(fd, offset, whence);
 }
 
+/*
+    Make all changes done to FD actually appear on disk.
+*/
 int lab2_fsync(int fd){
     return fsync(fd);
 }

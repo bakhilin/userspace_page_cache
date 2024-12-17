@@ -13,12 +13,12 @@ void create_test_file() {
     int fd = open(FILE_NAME, O_RDWR);    
     char buffer[BLOCK_SIZE];
     
-    for (int i = 0; i < 30; i++) {
+    for (int i = 0; i < 100; i++) {
         snprintf(buffer, BLOCK_SIZE, "This is block %d\n", i);
         write(fd, buffer, BLOCK_SIZE);
     }
     
-    close(fd);
+    lab2_close(fd);
 }
 
 void test_load_into_cache() {
@@ -57,8 +57,6 @@ void test_load_into_cache() {
     lab2_close(fd);
 }
 
-
-
 void test_write_to_cache() {
     create_test_file();
     
@@ -66,14 +64,11 @@ void test_write_to_cache() {
     char buffer[BLOCK_SIZE];
     
     snprintf(buffer, BLOCK_SIZE, "Updated block 0\n");
-    lseek(fd, 0, SEEK_SET);
-
+    lab2_lseek(fd, 0, SEEK_SET);
     lab2_write(fd, buffer, BLOCK_SIZE);
-    
-    lseek(fd, 0, SEEK_SET);
+    lab2_lseek(fd, 0, SEEK_SET);
     lab2_read(fd, buffer, BLOCK_SIZE);
     CU_ASSERT_STRING_EQUAL(buffer, "Updated block 0\n");
-    
     lab2_close(fd);
 }
 

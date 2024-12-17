@@ -4,7 +4,7 @@
 #include <sys/types.h>
 #include <stdbool.h>
 
-#define CACHE_SIZE 25
+#define CACHE_SIZE 50
 #define BLOCK_SIZE 4096
 
 typedef struct {
