@@ -1,19 +1,17 @@
 #ifndef CACHE_H
-
 #define CACHE_H
 
-#include <stddef.h>
 #include <sys/types.h>
 #include <stdbool.h>
 
 #define CACHE_SIZE 25
 #define BLOCK_SIZE 4096
 
-typedef struct  cache_write{
+typedef struct {
     ino_t inode;
     int  fd;
     bool  valid;
-    int  referenced; // second chance
+    int  referenced; 
     off_t  offset;
     void*  data;
 }  cache_write_t;

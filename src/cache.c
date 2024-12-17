@@ -1,3 +1,7 @@
+/*
+    cache.c - this is open API to communicate with files.
+*/
+
 #include "../include/cache.h"
 
 #include <stdio.h>
@@ -10,8 +14,13 @@
 
 #define BLOCK_SIZE 4096 
 
+/* cache pages array */ 
 static cache_write_t cache[CACHE_SIZE];
 
+/* 
+    Procedure get cache_page and calling write() 
+    If write operation was successfull, setting valid flag to FALSE.
+ */
 static void do_write_and_set_invalid(cache_write_t * cache_page) {
     if (write(cache_page->fd, cache_page->data, BLOCK_SIZE) == -1) {
         perror("write was failed");
@@ -20,10 +29,14 @@ static void do_write_and_set_invalid(cache_write_t * cache_page) {
     cache_page->valid = 0;
 }
 
+/* Checkout valid flag of cache_page */
 static bool find_not_valid_page(cache_write_t * cache_page){
     return cache_page->valid;
 }
 
+/*
+    The procedure initializes cache_page fields, allocate memory for cache_page->data
+*/
 static void init_cache_page(cache_write_t * cache_page, int fd, ino_t inode, off_t offset){
     cache_page->valid = 1;
     cache_page->fd = fd;
@@ -40,6 +53,7 @@ static void init_cache_page(cache_write_t * cache_page, int fd, ino_t inode, off
     cache_page->referenced = 1;   
 }
 
+/* The procedure set offset from beginning of file */
 static void read_from_fd_to_buf(cache_write_t * cache_page, int fd, off_t offset) {
     lseek(fd, offset, SEEK_SET);
     if (read(fd,cache_page->data, BLOCK_SIZE) == -1) {
@@ -48,9 +62,16 @@ static void read_from_fd_to_buf(cache_write_t * cache_page, int fd, off_t offset
     }
 }
 
+/*
+    Important procedure because it's throw out page from cache. 
+    First of all, we try to find not valid page by find_not_valid_page(),
+    if page was found we checking referenced flag. If flag is 0 lseek ret-
+    urn offset of current page and will be setting valid flag to 0.
+    In other case, will be setting referenced field 0.
+*/
 static void eject_page() {
     for (size_t i = 0; ; i = (i + 1) % CACHE_SIZE) {
-        cache_write_t *cache_page = &cache[i];
+        cache_write_t * cache_page = &cache[i];
         if (find_not_valid_page(cache_page)) {
             if (!cache_page->referenced) {
                 lseek(cache_page->fd, cache_page->offset, SEEK_SET);
@@ -203,4 +224,8 @@ ssize_t lab2_write(int fd, void *buf, size_t count) {
 
 off_t lab2_lseek(int fd, off_t offset, int whence) {
     return lseek(fd, offset, whence);
+}
+
+int lab2_fsync(int fd){
+    return fsync(fd);
 }

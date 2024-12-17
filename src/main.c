@@ -25,7 +25,6 @@ void test_load_into_cache() {
     create_test_file();
     int fd = lab2_open(FILE_NAME);
 
-    // Via fstat() we got inode of file. 
     struct stat f_stat;
     fstat(fd, &f_stat);
     ino_t inode = f_stat.st_ino;
